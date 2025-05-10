@@ -1,0 +1,135 @@
+def calculate_livability_score(green_space, public_transport, housing_affordability, walkability, safety):
+    # Each factor is scored out of 10
+    weights = {
+        'green_space': 0.2,
+        'public_transport': 0.2,
+        'housing_affordability': 0.2,
+        'walkability': 0.2,
+        'safety': 0.2
+    }
+
+    score = (
+        green_space * weights['green_space'] +
+        public_transport * weights['public_transport'] +
+        housing_affordability * weights['housing_affordability'] +
+        walkability * weights['walkability'] +
+        safety * weights['safety']
+    )
+    
+    return round(score, 2)
+
+# Get user input
+print("Rate each of the following from 0 (poor) to 10 (excellent):")
+
+green_space = float(input("Green space availability: "))
+public_transport = float(input("Public transport quality: "))
+housing_affordability = float(input("Housing affordability: "))
+walkability = float(input("Walkability: "))
+safety = float(input("Safety: "))
+
+# Calculate score
+livability_score = calculate_livability_score(
+    green_space, public_transport, housing_affordability, walkability, safety
+)
+
+print(f"\nYour neighborhood's livability score is: {livability_score} / 10")
+
+# Optional: basic interpretation
+if livability_score >= 8:
+    print("This is a highly livable area.")
+elif livability_score >= 5:
+    print("This area is moderately livable, with room for improvement.")
+else:
+    print("This area may need major improvements for better livability.")
+
+
+# db_init.py
+import sqlite3
+import pandas as pd
+
+conn = sqlite3.connect('gold.db')
+
+# Load CSV
+df = pd.read_csv('gold_price.csv', parse_dates=['Date'])
+
+# Store to DB
+df.to_sql('gold_prices', conn, if_exists='replace', index=False)
+
+conn.close()
+
+import sqlite3
+import pandas as pd
+import matplotlib.pyplot as plt
+
+conn = sqlite3.connect('gold.db')
+df = pd.read_sql("SELECT * FROM gold_prices", conn)
+
+# Rename column if needed
+if 'Date' in df.columns:
+    df.rename(columns={'Date': 'date'}, inplace=True)
+
+df['date'] = pd.to_datetime(df['date'], errors='coerce')
+df = df.dropna(subset=['date'])
+
+# CLEANING the corrupted column
+def safe_convert(value):
+    try:
+        return float(str(value).split()[0])
+    except:
+        return None
+
+df['price_per_ounce'] = df['price_per_ounce'].apply(safe_convert)
+df = df.dropna(subset=['price_per_ounce'])
+
+df['month'] = df['date'].dt.to_period('M')
+monthly_avg = df.groupby('month')['price_per_ounce'].mean()
+
+monthly_avg.plot(title='Average Monthly Gold Price')
+plt.ylabel('Price per Ounce')
+plt.xlabel('Month')
+plt.tight_layout()
+plt.show()
+
+import sqlite3
+import pandas as pd
+import matplotlib.pyplot as plt
+import re
+
+# Connect to SQLite database
+conn = sqlite3.connect('gold.db')
+
+# Read data from the gold_prices table
+df = pd.read_sql("SELECT * FROM gold_prices", conn, parse_dates=['Date'])
+
+# --- CLEANING SECTION ---
+
+# Define cleaning function to extract first float from string
+def extract_first_float(value):
+    try:
+        match = re.search(r'\d+\.\d+', str(value))
+        if match:
+            return float(match.group())
+    except:
+        return None
+
+# Apply cleaning to price_per_ounce column
+df['price_per_ounce'] = df['price_per_ounce'].apply(extract_first_float)
+
+# Drop rows where conversion failed
+df = df.dropna(subset=['price_per_ounce'])
+
+# --- ANALYSIS SECTION ---
+
+# Extract month from date
+df['month'] = df['Date'].dt.to_period('M')
+
+# Group by month and calculate average
+monthly_avg = df.groupby('month')['price_per_ounce'].mean()
+
+# --- PLOTTING SECTION ---
+
+monthly_avg.plot(title='Average Monthly Gold Price')
+plt.ylabel('Price per Ounce')
+plt.xlabel('Month')
+plt.tight_layout()
+plt.show()
